@@ -84,7 +84,7 @@ function Dashboard() {
               {error instanceof Error ? error.message : "Failed to load dashboard."}
             </p>
             <Button variant="outline" size="sm" onClick={() => refetch()}>
-              Retry
+              Retryy
             </Button>
           </CardContent>
         </Card>
