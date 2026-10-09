@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { getAccessToken } from "@/api/token";
 import {
   useCurrentUserQuery,
+  useGoogleLoginMutation,
   useLoginMutation,
   useLogoutMutation,
   useRegisterMutation,
@@ -11,6 +12,7 @@ export function useAuth() {
   const hasToken = typeof window !== "undefined" && Boolean(getAccessToken());
   const currentUser = useCurrentUserQuery();
   const loginMutation = useLoginMutation();
+  const googleLoginMutation = useGoogleLoginMutation();
   const registerMutation = useRegisterMutation();
   const logoutMutation = useLogoutMutation();
 
@@ -18,6 +20,7 @@ export function useAuth() {
   const isLoading =
     (hasToken && (currentUser.isLoading || currentUser.isFetching)) ||
     loginMutation.isPending ||
+    googleLoginMutation.isPending ||
     registerMutation.isPending;
 
   return useMemo(
@@ -28,10 +31,13 @@ export function useAuth() {
       isError: currentUser.isError,
       error: currentUser.error,
       login: loginMutation.mutateAsync,
+      googleLogin: googleLoginMutation.mutateAsync,
       register: registerMutation.mutateAsync,
       logout: logoutMutation.mutateAsync,
       loginError: loginMutation.error,
+      googleLoginError: googleLoginMutation.error,
       registerError: registerMutation.error,
+      isGoogleLoggingIn: googleLoginMutation.isPending,
       isLoggingIn: loginMutation.isPending,
       isRegistering: registerMutation.isPending,
       refetchUser: currentUser.refetch,
@@ -46,6 +52,9 @@ export function useAuth() {
       loginMutation.mutateAsync,
       loginMutation.error,
       loginMutation.isPending,
+      googleLoginMutation.mutateAsync,
+      googleLoginMutation.error,
+      googleLoginMutation.isPending,
       registerMutation.mutateAsync,
       registerMutation.error,
       registerMutation.isPending,
@@ -73,6 +82,15 @@ export function useRegister() {
     error: auth.registerError,
     isAuthenticated: auth.isAuthenticated,
     isAuthLoading: auth.isLoading,
+  };
+}
+
+export function useGoogleLogin() {
+  const auth = useAuth();
+  return {
+    googleLogin: auth.googleLogin,
+    isLoading: auth.isGoogleLoggingIn,
+    error: auth.googleLoginError,
   };
 }
 

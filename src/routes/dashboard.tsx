@@ -30,10 +30,9 @@ export const Route = createFileRoute("/dashboard")({
 
 function DashboardRoute() {
   return (
-    // <ProtectedRoute>
-    //   <Dashboard />
-    // </ProtectedRoute>
-    <Dashboard />
+    <ProtectedRoute>
+      <Dashboard />
+    </ProtectedRoute>
   );
 }
 

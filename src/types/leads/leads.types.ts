@@ -11,6 +11,9 @@ export const LEAD_STATUSES = [
 
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
 
+export const LEAD_TEMPERATURES = ["Hot", "Warm", "Cold"] as const;
+export type LeadTemperature = (typeof LEAD_TEMPERATURES)[number];
+
 export const OUTREACH_CHANNELS = [
   "Email",
   "Call",
@@ -35,6 +38,8 @@ export interface Lead {
   website: string;
   companyType: string;
   status: LeadStatus;
+  temperature: LeadTemperature;
+  followUpNeeded: boolean;
   notes: string;
   lastContacted: string | null;
   nextFollowUp: string | null;
@@ -44,6 +49,19 @@ export interface Lead {
 export type LeadInput = Omit<Lead, "id" | "createdAt">;
 export type LeadPatch = Partial<LeadInput>;
 export type NewLead = LeadInput;
+
+export interface LeadImportError {
+  row: number;
+  reason: string;
+}
+
+export interface LeadImportResult {
+  total: number;
+  imported: number;
+  skipped: number;
+  invalidEmails: number;
+  errors: LeadImportError[];
+}
 
 export interface Activity {
   id: string;
@@ -59,12 +77,7 @@ export interface ActivityInput {
   date: string;
 }
 
-export type LeadSortField =
-  | "company"
-  | "status"
-  | "lastContacted"
-  | "nextFollowUp"
-  | "createdAt";
+export type LeadSortField = "company" | "status" | "lastContacted" | "nextFollowUp" | "createdAt";
 
 export interface LeadListQuery {
   search?: string;

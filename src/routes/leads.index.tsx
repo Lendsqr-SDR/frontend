@@ -1,9 +1,9 @@
-/* eslint-disable prettier/prettier */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
-import { Download, Upload, Search, ArrowUpDown, Eye } from "lucide-react";
+import { Download, Upload, Search, ArrowUpDown, Eye, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
+import { LeadFormDialog } from "@/components/lead-form-dialog";
 import { ProtectedRoute } from "@/components/protected-route";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,7 @@ import {
 import { useImportLeads, useLeads } from "@/hooks/leads/use-leads";
 import { LEAD_STATUSES, type LeadSortField, type LeadStatus } from "@/types/leads/leads.types";
 import { formatDate } from "@/lib/date-utils";
-import { csvToLeads, downloadCsv, leadsToCsv } from "@/lib/excel";
+import { downloadCsv, fileToLeads, leadsToCsv } from "@/lib/excel";
 
 export const Route = createFileRoute("/leads/")({
   head: () => ({
@@ -70,9 +70,9 @@ function LeadsPage() {
 
   const listQuery = useMemo(
     () => ({
-      search: search.trim() || undefined,
-      status: status === "all" ? undefined : (status as LeadStatus),
-      country: country === "all" ? undefined : country,
+      ...(search.trim() ? { search: search.trim() } : {}),
+      ...(status === "all" ? {} : { status: status as LeadStatus }),
+      ...(country === "all" ? {} : { country }),
       page,
       pageSize: PAGE_SIZE,
       sort,
@@ -99,32 +99,47 @@ function LeadsPage() {
   };
 
   const onExport = () => {
-    downloadCsv(
-      `lendsqr-leads-${new Date().toISOString().slice(0, 10)}.csv`,
-      leadsToCsv(leads),
-    );
+    downloadCsv(`lendsqr-leads-${new Date().toISOString().slice(0, 10)}.csv`, leadsToCsv(leads));
     toast.success(`Exported ${leads.length} leads to Excel (CSV)`);
   };
 
   const onImport = async (file: File) => {
-    const text = await file.text();
-    const { leads: parsed, skipped } = csvToLeads(text);
-    if (parsed.length === 0) {
-      toast.error("No valid rows found. Export a file first to see the expected columns.");
-      return;
-    }
     try {
-      await importLeads(parsed);
+      const { leads: parsed, sourceRows, skipped, invalidEmails } = await fileToLeads(file);
+      if (parsed.length === 0) {
+        toast.error("No valid rows found. Use the required column structure.");
+        return;
+      }
+      const result = await importLeads(parsed, sourceRows);
+      const total = result.total + skipped;
+      const skippedTotal = result.skipped + skipped;
+      const invalidEmailTotal = result.invalidEmails + invalidEmails;
       toast.success(
-        `Imported ${parsed.length} leads${skipped ? `, skipped ${skipped} rows` : ""}`,
+        `Import complete: ${total} rows, ${result.imported} imported, ${skippedTotal} skipped, ${invalidEmailTotal} invalid email values.`,
       );
+      if (result.errors.length) {
+        const examples = result.errors
+          .slice(0, 3)
+          .map((item) => `Row ${item.row}: ${item.reason}`)
+          .join(" ");
+        const remaining = result.errors.length > 3 ? ` And ${result.errors.length - 3} more.` : "";
+        toast.error(`${examples}${remaining}`);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Import failed.");
     }
   };
 
-  const SortHead = ({ label, keyName }: { label: string; keyName: LeadSortField }) => (
-    <TableHead>
+  const SortHead = ({
+    label,
+    keyName,
+    className,
+  }: {
+    label: string;
+    keyName: LeadSortField;
+    className?: string;
+  }) => (
+    <TableHead className={className}>
       <button
         onClick={() => toggleSort(keyName)}
         className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground uppercase hover:text-foreground"
@@ -147,7 +162,7 @@ function LeadsPage() {
           <input
             ref={fileRef}
             type="file"
-            accept=".csv,text/csv"
+            accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
@@ -161,10 +176,17 @@ function LeadsPage() {
             disabled={isImporting}
             onClick={() => fileRef.current?.click()}
           >
-            <Upload className="size-4" /> Import Excel
+            <Upload className="size-4" /> Import file
           </Button>
+          <LeadFormDialog
+            trigger={
+              <Button size="sm">
+                <Plus className="size-4" /> Add lead
+              </Button>
+            }
+          />
           <Button size="sm" onClick={onExport} disabled={leads.length === 0}>
-            <Download className="size-4" /> Export Excel
+            <Download className="size-4" /> Export CSV
           </Button>
         </>
       }
@@ -241,42 +263,81 @@ function LeadsPage() {
                 </Button>
               </div>
             ) : (
-              <Table>
+              <Table className="min-w-[1560px] table-fixed">
                 <TableHeader>
                   <TableRow>
-                    <SortHead label="Company" keyName="company" />
-                    <TableHead className="text-xs font-semibold uppercase">Contact person</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase">Role</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase">Email</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase">Country</TableHead>
-                    <SortHead label="Status" keyName="status" />
-                    <SortHead label="Last contacted" keyName="lastContacted" />
-                    <SortHead label="Next follow-up" keyName="nextFollowUp" />
-                    <TableHead className="text-right text-xs font-semibold uppercase">Actions</TableHead>
+                    <SortHead label="Company" keyName="company" className="w-48 whitespace-nowrap" />
+                    <TableHead className="w-36 whitespace-nowrap text-xs font-semibold uppercase">
+                      Contact person
+                    </TableHead>
+                    <TableHead className="w-32 whitespace-nowrap text-xs font-semibold uppercase">Role</TableHead>
+                    <TableHead className="w-48 whitespace-nowrap text-xs font-semibold uppercase">Email</TableHead>
+                    <TableHead className="w-28 whitespace-nowrap text-xs font-semibold uppercase">Country</TableHead>
+                    <TableHead className="w-28 whitespace-nowrap text-xs font-semibold uppercase">
+                      Temperature
+                    </TableHead>
+                    <TableHead className="w-32 whitespace-nowrap text-xs font-semibold uppercase">
+                      Follow-up needed
+                    </TableHead>
+                    <TableHead className="w-36 whitespace-nowrap">
+                      <button
+                        onClick={() => toggleSort("status")}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground uppercase hover:text-foreground"
+                      >
+                        Status <ArrowUpDown className="size-3" />
+                      </button>
+                    </TableHead>
+                    <TableHead className="w-36 whitespace-nowrap">
+                      <button
+                        onClick={() => toggleSort("lastContacted")}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground uppercase hover:text-foreground"
+                      >
+                        Last contacted <ArrowUpDown className="size-3" />
+                      </button>
+                    </TableHead>
+                    <TableHead className="w-36 whitespace-nowrap">
+                      <button
+                        onClick={() => toggleSort("nextFollowUp")}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground uppercase hover:text-foreground"
+                      >
+                        Next follow-up <ArrowUpDown className="size-3" />
+                      </button>
+                    </TableHead>
+                    <TableHead className="w-24 whitespace-nowrap text-right text-xs font-semibold uppercase">
+                      Actions
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {leads.map((l) => (
                     <TableRow key={l.id} className="cursor-pointer">
-                      <TableCell className="font-medium">
-                        <Link to="/leads/$leadId" params={{ leadId: l.id }} className="hover:underline">
-                          {l.company}
+                      <TableCell className="truncate font-medium" title={l.company}>
+                        <Link
+                          to="/leads/$leadId"
+                          params={{ leadId: l.id }}
+                          className="hover:underline"
+                        >
+                          <span className="block truncate">{l.company}</span>
                         </Link>
                       </TableCell>
-                      <TableCell>{l.contactPerson}</TableCell>
-                      <TableCell className="text-muted-foreground">{l.role}</TableCell>
-                      <TableCell className="text-muted-foreground">{l.email}</TableCell>
-                      <TableCell>{l.country}</TableCell>
-                      <TableCell>
+                      <TableCell className="truncate" title={l.contactPerson}>{l.contactPerson}</TableCell>
+                      <TableCell className="truncate text-muted-foreground" title={l.role}>{l.role}</TableCell>
+                      <TableCell className="truncate text-muted-foreground" title={l.email}>{l.email}</TableCell>
+                      <TableCell className="truncate" title={l.country}>{l.country}</TableCell>
+                      <TableCell className="whitespace-nowrap">{l.temperature}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {l.followUpNeeded ? "Yes" : "No"}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
                         <StatusBadge status={l.status} />
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
                         {formatDate(l.lastContacted)}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
                         {formatDate(l.nextFollowUp)}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="whitespace-nowrap text-right">
                         <Button asChild variant="ghost" size="sm">
                           <Link to="/leads/$leadId" params={{ leadId: l.id }}>
                             <Eye className="size-4" /> View
@@ -287,7 +348,10 @@ function LeadsPage() {
                   ))}
                   {leads.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="py-10 text-center text-sm text-muted-foreground">
+                      <TableCell
+                        colSpan={11}
+                        className="py-10 text-center text-sm text-muted-foreground"
+                      >
                         No leads match your filters.
                       </TableCell>
                     </TableRow>

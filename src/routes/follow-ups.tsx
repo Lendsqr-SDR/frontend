@@ -70,13 +70,16 @@ function FollowUpList({ leads, empty }: { leads: Lead[]; empty: string }) {
 function FollowUps() {
   const { leads, isLoading, isError, error, refetch } = useFollowUps();
 
-  const scheduled = [...leads].sort((a, b) =>
+  const scheduled = leads
+    .filter((lead) => lead.nextFollowUp)
+    .sort((a, b) =>
     a.nextFollowUp! < b.nextFollowUp! ? -1 : 1,
-  );
+    );
 
   const overdue = scheduled.filter((l) => (daysFromToday(l.nextFollowUp) ?? 0) < 0);
   const dueToday = scheduled.filter((l) => daysFromToday(l.nextFollowUp) === 0);
   const upcoming = scheduled.filter((l) => (daysFromToday(l.nextFollowUp) ?? 0) > 0);
+  const needsScheduling = leads.filter((lead) => lead.followUpNeeded && !lead.nextFollowUp);
 
   return (
     <AppShell title="Follow-ups" description="Stay on top of every scheduled touchpoint">
@@ -98,6 +101,21 @@ function FollowUps() {
         </Card>
       ) : (
         <div className="space-y-4">
+          <Card>
+            <CardHeader className="flex-row items-center justify-between">
+              <CardTitle className="text-sm font-semibold">Needs scheduling</CardTitle>
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                {needsScheduling.length}
+              </span>
+            </CardHeader>
+            <CardContent>
+              <FollowUpList
+                leads={needsScheduling}
+                empty="No leads are waiting for a follow-up date."
+              />
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader className="flex-row items-center justify-between">
               <CardTitle className="text-sm font-semibold">Overdue</CardTitle>

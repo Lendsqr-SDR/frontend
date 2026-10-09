@@ -1,14 +1,12 @@
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getAccessToken } from "@/api/token";
 import { dashboardKeys } from "@/services/dashboard/dashboard.queries";
 import { LeadsService } from "./leads.service";
 import type {
   ActivityInput,
   LeadInput,
+  NewLead,
+  LeadImportResult,
   LeadListQuery,
   LeadPatch,
   LeadStatus,
@@ -18,6 +16,7 @@ export const leadsKeys = {
   all: ["leads"] as const,
   lists: () => [...leadsKeys.all, "list"] as const,
   list: (query: LeadListQuery) => [...leadsKeys.lists(), query] as const,
+  followUps: () => [...leadsKeys.all, "follow-ups"] as const,
   details: () => [...leadsKeys.all, "detail"] as const,
   detail: (id: string) => [...leadsKeys.details(), id] as const,
   activities: () => [...leadsKeys.all, "activities"] as const,
@@ -34,6 +33,14 @@ export function useLeadsQuery(query: LeadListQuery = {}) {
   return useQuery({
     queryKey: leadsKeys.list(query),
     queryFn: () => LeadsService.list(query),
+    enabled: typeof window !== "undefined" && Boolean(getAccessToken()),
+  });
+}
+
+export function useFollowUpsQuery() {
+  return useQuery({
+    queryKey: leadsKeys.followUps(),
+    queryFn: () => LeadsService.listAllFollowUps(),
     enabled: typeof window !== "undefined" && Boolean(getAccessToken()),
   });
 }
@@ -66,15 +73,36 @@ export function useBulkCreateLeadsMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (leads: LeadInput[]) => LeadsService.bulkCreate(leads),
+    onSettled: () => invalidateLeadQueries(queryClient),
+  });
+}
+
+export function useCreateLeadMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (lead: LeadInput) => LeadsService.create(lead),
     onSuccess: () => invalidateLeadQueries(queryClient),
+  });
+}
+
+export function useImportLeadsMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      leads,
+      sourceRows,
+    }: {
+      leads: NewLead[];
+      sourceRows: number[];
+    }): Promise<LeadImportResult> => LeadsService.importLeads(leads, sourceRows),
+    onSettled: () => invalidateLeadQueries(queryClient),
   });
 }
 
 export function useUpdateLeadMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: LeadPatch }) =>
-      LeadsService.update(id, patch),
+    mutationFn: ({ id, patch }: { id: string; patch: LeadPatch }) => LeadsService.update(id, patch),
     onSuccess: () => invalidateLeadQueries(queryClient),
   });
 }
@@ -99,8 +127,7 @@ export function useChangeStatusMutation() {
 export function useAddNoteMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, note }: { id: string; note: string }) =>
-      LeadsService.addNote(id, note),
+    mutationFn: ({ id, note }: { id: string; note: string }) => LeadsService.addNote(id, note),
     onSuccess: () => invalidateLeadQueries(queryClient),
   });
 }
@@ -108,13 +135,8 @@ export function useAddNoteMutation() {
 export function useAddActivityMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      leadId,
-      input,
-    }: {
-      leadId: string;
-      input: ActivityInput;
-    }) => LeadsService.addActivity(leadId, input),
+    mutationFn: ({ leadId, input }: { leadId: string; input: ActivityInput }) =>
+      LeadsService.addActivity(leadId, input),
     onSuccess: () => invalidateLeadQueries(queryClient),
   });
 }

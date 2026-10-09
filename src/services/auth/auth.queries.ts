@@ -28,12 +28,23 @@ export function useLoginMutation() {
   });
 }
 
+export function useGoogleLoginMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (credential: string) => AuthService.googleLogin(credential),
+    onSuccess: (data) => {
+      queryClient.setQueryData(authKeys.me(), data.user);
+    },
+  });
+}
+
 export function useRegisterMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: RegisterRequest) => AuthService.register(payload),
-    onSuccess: (data) => {
-      queryClient.setQueryData(authKeys.me(), data.user);
+    onSuccess: () => {
+      AuthService.logout();
+      queryClient.removeQueries({ queryKey: authKeys.all });
     },
   });
 }

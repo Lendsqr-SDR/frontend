@@ -1,9 +1,19 @@
 /* eslint-disable prettier/prettier */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { ArrowLeft, Mail, Phone, Linkedin, Globe, MapPin, Building2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Mail,
+  Phone,
+  Linkedin,
+  Globe,
+  MapPin,
+  Building2,
+  CalendarClock,
+} from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
+import { LeadFormDialog } from "@/components/lead-form-dialog";
 import { ProtectedRoute } from "@/components/protected-route";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -60,13 +70,44 @@ function LeadDetailRoute() {
 
 const CHANNELS: OutreachChannel[] = ["Email", "Call", "LinkedIn", "WhatsApp", "Meeting"];
 
-function Field({ icon: Icon, label, value }: { icon: typeof Mail; label: string; value: string }) {
+function externalUrl(value: string): string | undefined {
+  if (!value) return undefined;
+  try {
+    const url = new URL(/^[a-z][a-z\d+.-]*:/i.test(value) ? value : `https://${value}`);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function Field({
+  icon: Icon,
+  label,
+  value,
+  href,
+}: {
+  icon: typeof Mail;
+  label: string;
+  value: string;
+  href?: string | undefined;
+}) {
   return (
     <div className="flex items-start gap-3">
       <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       <div className="min-w-0">
         <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="truncate text-sm text-foreground">{value || "—"}</p>
+        {href ? (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block break-all text-sm text-primary underline-offset-4 hover:underline"
+          >
+            {value}
+          </a>
+        ) : (
+          <p className="break-all text-sm text-foreground">{value || "—"}</p>
+        )}
       </div>
     </div>
   );
@@ -128,11 +169,17 @@ function LeadDetail() {
       title={lead.company}
       description={`${lead.contactPerson} · ${lead.role}`}
       actions={
-        <Button asChild variant="ghost" size="sm">
-          <Link to="/leads">
-            <ArrowLeft className="size-4" /> Back
-          </Link>
-        </Button>
+        <>
+          <LeadFormDialog
+            lead={lead}
+            trigger={<Button variant="outline" size="sm">Edit details</Button>}
+          />
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/leads">
+              <ArrowLeft className="size-4" /> Back
+            </Link>
+          </Button>
+        </>
       }
     >
       <div className="grid gap-4 lg:grid-cols-3">
@@ -146,7 +193,18 @@ function LeadDetail() {
               <Field icon={Building2} label="Company" value={lead.company} />
               <Field icon={Building2} label="Company type" value={lead.companyType} />
               <Field icon={MapPin} label="Location" value={`${lead.city}, ${lead.country}`} />
-              <Field icon={Globe} label="Website" value={lead.website} />
+              <Field icon={Building2} label="Lead temperature" value={lead.temperature} />
+              <Field
+                icon={CalendarClock}
+                label="Follow-up needed"
+                value={lead.followUpNeeded ? "Yes" : "No"}
+              />
+              <Field
+                icon={Globe}
+                label="Website"
+                value={lead.website}
+                href={externalUrl(lead.website)}
+              />
             </CardContent>
           </Card>
 
@@ -157,7 +215,12 @@ function LeadDetail() {
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <Field icon={Mail} label="Email" value={lead.email} />
               <Field icon={Phone} label="Phone" value={lead.phone} />
-              <Field icon={Linkedin} label="LinkedIn" value={lead.linkedin} />
+              <Field
+                icon={Linkedin}
+                label="LinkedIn"
+                value={lead.linkedin}
+                href={externalUrl(lead.linkedin)}
+              />
               <Field icon={Building2} label="Role" value={lead.role} />
             </CardContent>
           </Card>
@@ -286,6 +349,10 @@ function LeadDetail() {
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Add note</DialogTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Add background or context to this lead. To record an actual touchpoint, use
+                      Log outreach.
+                    </p>
                   </DialogHeader>
                   <Textarea
                     value={note}
@@ -322,6 +389,10 @@ function LeadDetail() {
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Log outreach</DialogTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Record a dated email, call, LinkedIn message, WhatsApp, or meeting. Use
+                      Add note for general lead context.
+                    </p>
                   </DialogHeader>
                   <div className="space-y-3">
                     <div className="space-y-2">
@@ -386,7 +457,13 @@ function LeadDetail() {
                 </DialogContent>
               </Dialog>
 
-              <Dialog open={followUpOpen} onOpenChange={setFollowUpOpen}>
+              <Dialog
+                open={followUpOpen}
+                onOpenChange={(open) => {
+                  setFollowUpOpen(open);
+                  if (open) setFollowUpDate(lead.nextFollowUp ?? todayISO());
+                }}
+              >
                 <DialogTrigger asChild>
                   <Button disabled={isMutating}>Schedule follow-up</Button>
                 </DialogTrigger>
@@ -399,12 +476,13 @@ function LeadDetail() {
                     <Input
                       type="date"
                       value={followUpDate}
+                      required
                       onChange={(e) => setFollowUpDate(e.target.value)}
                     />
                   </div>
                   <DialogFooter>
                     <Button
-                      disabled={isMutating}
+                      disabled={!followUpDate || isMutating}
                       onClick={async () => {
                         try {
                           await scheduleFollowUp(followUpDate);

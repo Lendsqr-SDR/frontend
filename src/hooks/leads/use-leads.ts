@@ -2,11 +2,12 @@ import {
   useAddActivityMutation,
   useAddNoteMutation,
   useAllActivitiesQuery,
-  useBulkCreateLeadsMutation,
   useChangeStatusMutation,
   useDeleteLeadMutation,
+  useFollowUpsQuery,
   useLeadActivitiesQuery,
   useLeadQuery,
+  useImportLeadsMutation,
   useLeadsQuery,
   useScheduleFollowUpMutation,
 } from "@/services/leads/leads.queries";
@@ -61,28 +62,24 @@ export function useLead(id: string) {
 }
 
 export function useImportLeads() {
-  const mutation = useBulkCreateLeadsMutation();
+  const mutation = useImportLeadsMutation();
   return {
-    importLeads: (leads: LeadInput[]) => mutation.mutateAsync(leads),
+    importLeads: (leads: LeadInput[], sourceRows: number[]) =>
+      mutation.mutateAsync({ leads, sourceRows }),
     isLoading: mutation.isPending,
     error: mutation.error,
   };
 }
 
 export function useFollowUps() {
-  const { leads, isLoading, isError, error, refetch } = useLeads({
-    page: 1,
-    pageSize: 100,
-    sort: "nextFollowUp",
-    direction: "asc",
-  });
+  const query = useFollowUpsQuery();
 
   return {
-    leads: leads.filter((l) => l.nextFollowUp),
-    isLoading,
-    isError,
-    error,
-    refetch,
+    leads: query.data ?? [],
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
+    refetch: query.refetch,
   };
 }
 

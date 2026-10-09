@@ -89,7 +89,7 @@ export function AppShell({
     <div className="flex min-h-screen bg-background">
       <aside
         className={`hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-[width] duration-200 lg:flex ${
-          sidebarCollapsed ? "w-[4.5rem]" : "w-60 xl:w-64"
+          sidebarCollapsed ? "w-[4.5rem]" : "w-52 xl:w-56"
         }`}
       >
         <Brand collapsed={sidebarCollapsed} />
