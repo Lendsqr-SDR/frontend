@@ -1,10 +1,10 @@
 import { api, unwrapData } from "@/api/api";
 import type { ApiSuccess } from "@/types/api";
 
-export type OutreachSourceStatus = "connected" | "indirect" | "unavailable" | "error";
+export type OutreachSourceStatus = "connected" | "unavailable" | "error";
 
 export interface OutreachSource {
-  key: "google-groups" | "google-cloud-search";
+  key: "google-drive" | "google-cloud-search";
   label: string;
   status: OutreachSourceStatus;
   message: string;

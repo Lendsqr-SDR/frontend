@@ -8,9 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useOutreachSearch } from "@/services/outreach/outreach.queries";
 import type { OutreachSourceStatus } from "@/services/outreach/outreach.service";
+import { ApiError } from "@/types/api";
 
 type GoogleTokenResponse = {
   access_token?: string;
+  expires_in?: number;
   error?: string;
   error_description?: string;
 };
@@ -38,6 +40,7 @@ declare global {
 const GOOGLE_CLIENT_ID = import.meta.env["VITE_GOOGLE_CLIENT_ID"] as string | undefined;
 const GOOGLE_SCRIPT_URL = "https://accounts.google.com/gsi/client";
 const GOOGLE_SEARCH_SCOPES = [
+  "https://www.googleapis.com/auth/drive.readonly",
   "https://www.googleapis.com/auth/cloud_search.query",
   "https://www.googleapis.com/auth/userinfo.email",
 ].join(" ");
@@ -48,7 +51,7 @@ export const Route = createFileRoute("/outreach-checker")({
       { title: "Outreach Checker — Lendsqr SDR Tracker" },
       {
         name: "description",
-        content: "Check indexed Google Groups and Cloud Search conversations for prior outreach.",
+        content: "Search Google Drive and Cloud Search for prior company outreach.",
       },
     ],
   }),
@@ -72,7 +75,6 @@ function formatConversationDate(value: string | null) {
 
 function statusLabel(status: OutreachSourceStatus) {
   if (status === "connected") return "Connected";
-  if (status === "indirect") return "Via Cloud Search";
   if (status === "error") return "Search error";
   return "Unavailable";
 }
@@ -83,8 +85,11 @@ function OutreachChecker() {
     typeof window !== "undefined" && Boolean(window.google?.accounts.oauth2),
   );
   const [isConnecting, setIsConnecting] = useState(false);
+  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
   const [googleError, setGoogleError] = useState<string | null>(null);
   const tokenClientRef = useRef<GoogleTokenClient | null>(null);
+  const googleAccessTokenRef = useRef<string | null>(null);
+  const googleTokenExpiresAtRef = useRef(0);
   const tokenResolverRef = useRef<((token: string) => void) | null>(null);
   const tokenRejecterRef = useRef<((error: Error) => void) | null>(null);
   const tokenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -109,7 +114,7 @@ function OutreachChecker() {
             tokenRejecterRef.current?.(
               new Error(
                 response.error_description ||
-                  "Google authorization was not granted. Search requires Cloud Search access.",
+                  "Google authorization was not granted. Search requires Drive and Cloud Search access.",
               ),
             );
             tokenResolverRef.current = null;
@@ -117,6 +122,10 @@ function OutreachChecker() {
             return;
           }
           tokenResolverRef.current?.(response.access_token);
+          googleAccessTokenRef.current = response.access_token;
+          setGoogleAccessToken(response.access_token);
+          googleTokenExpiresAtRef.current =
+            Date.now() + Math.max(0, (response.expires_in ?? 3600) - 60) * 1000;
           tokenResolverRef.current = null;
           tokenRejecterRef.current = null;
         },
@@ -148,6 +157,9 @@ function OutreachChecker() {
   }, []);
 
   function requestGoogleAccessToken() {
+    if (googleAccessTokenRef.current && Date.now() < googleTokenExpiresAtRef.current) {
+      return Promise.resolve(googleAccessTokenRef.current);
+    }
     if (!tokenClientRef.current) {
       throw new Error(googleError || "Google authorization is not ready.");
     }
@@ -174,7 +186,19 @@ function OutreachChecker() {
     setIsConnecting(true);
     try {
       const accessToken = await requestGoogleAccessToken();
-      search.mutate({ query, accessToken });
+      search.mutate(
+        { query, accessToken },
+        {
+          onError: (error) => {
+            if (error instanceof ApiError && error.status === 401) {
+              googleAccessTokenRef.current = null;
+              setGoogleAccessToken(null);
+              googleTokenExpiresAtRef.current = 0;
+              setGoogleError("Google access expired. Search again to reconnect your account.");
+            }
+          },
+        },
+      );
     } catch (error) {
       setGoogleError(
         error instanceof Error ? error.message : "Google authorization could not be completed.",
@@ -213,12 +237,14 @@ function OutreachChecker() {
                   ? "Connecting…"
                   : search.isPending
                     ? "Searching…"
-                    : "Connect Google & search"}
+                    : googleAccessToken
+                      ? "Search"
+                      : "Connect Google & search"}
               </Button>
             </form>
             <p className="mt-3 text-xs text-muted-foreground">
-              Searches conversations indexed in Google Cloud Search and visible to your Google
-              account. The first search may ask you to grant access.
+              Searches accessible Google Drive files and indexed Cloud Search content. Google access
+              is reused until the short-lived token expires.
             </p>
             {googleError ? (
               <p className="mt-3 text-sm text-destructive" role="alert">
@@ -231,7 +257,7 @@ function OutreachChecker() {
         {search.isPending ? (
           <Card>
             <CardContent className="p-6 text-sm text-muted-foreground" role="status">
-              Searching Google Cloud Search, including any indexed Google Groups conversations…
+              Searching Google Drive and Google Cloud Search…
             </CardContent>
           </Card>
         ) : null}
@@ -274,7 +300,7 @@ function OutreachChecker() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Conversations matching “{data.query}”</CardTitle>
+                <CardTitle className="text-base">Records matching “{data.query}”</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 {data.results.length > 0 ? (
@@ -312,21 +338,23 @@ function OutreachChecker() {
                           target="_blank"
                           rel="noreferrer"
                         >
-                          Open original conversation
+                          {result.source.includes("Google Drive")
+                            ? "Open original file"
+                            : "Open original conversation"}
                           <ExternalLink className="size-3.5" />
                         </a>
                       ) : (
                         <p className="mt-3 text-xs text-muted-foreground">
-                          Original conversation link not available.
+                          Original record link not available.
                         </p>
                       )}
                     </article>
                   ))
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    No matching conversations were returned from the connected sources. This is not
-                    proof that no previous outreach exists; content may be unindexed, inaccessible,
-                    or held in an unavailable source.
+                    No matching records were returned from the connected sources. This is not proof
+                    that no previous outreach exists; content may be unindexed, inaccessible, or
+                    held in an unavailable source.
                   </p>
                 )}
               </CardContent>
