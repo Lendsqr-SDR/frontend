@@ -4,7 +4,7 @@ import type { ApiSuccess } from "@/types/api";
 export type OutreachSourceStatus = "connected" | "unavailable" | "error";
 
 export interface OutreachSource {
-  key: "google-drive" | "google-cloud-search";
+  key: "google-drive";
   label: string;
   status: OutreachSourceStatus;
   message: string;

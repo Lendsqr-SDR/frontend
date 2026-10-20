@@ -39,9 +39,8 @@ declare global {
 
 const GOOGLE_CLIENT_ID = import.meta.env["VITE_GOOGLE_CLIENT_ID"] as string | undefined;
 const GOOGLE_SCRIPT_URL = "https://accounts.google.com/gsi/client";
-const GOOGLE_SEARCH_SCOPES = [
+const GOOGLE_DRIVE_SCOPES = [
   "https://www.googleapis.com/auth/drive.readonly",
-  "https://www.googleapis.com/auth/cloud_search.query",
   "https://www.googleapis.com/auth/userinfo.email",
 ].join(" ");
 
@@ -51,7 +50,7 @@ export const Route = createFileRoute("/outreach-checker")({
       { title: "Outreach Checker — Lendsqr SDR Tracker" },
       {
         name: "description",
-        content: "Search Google Drive and Cloud Search for prior company outreach.",
+        content: "Search Google Drive for prior company outreach.",
       },
     ],
   }),
@@ -106,7 +105,7 @@ function OutreachChecker() {
       if (!window.google?.accounts.oauth2) return;
       tokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
-        scope: GOOGLE_SEARCH_SCOPES,
+        scope: GOOGLE_DRIVE_SCOPES,
         callback: (response) => {
           if (tokenTimeoutRef.current) clearTimeout(tokenTimeoutRef.current);
           tokenTimeoutRef.current = null;
@@ -114,7 +113,7 @@ function OutreachChecker() {
             tokenRejecterRef.current?.(
               new Error(
                 response.error_description ||
-                  "Google authorization was not granted. Search requires Drive and Cloud Search access.",
+                  "Google authorization was not granted. Search requires Google Drive access.",
               ),
             );
             tokenResolverRef.current = null;
@@ -211,7 +210,7 @@ function OutreachChecker() {
   return (
     <AppShell
       title="Outreach Checker"
-      description="Search indexed company conversations before starting a new outreach."
+      description="Search accessible Google Drive records before starting a new outreach."
     >
       <div className="mx-auto max-w-5xl space-y-5">
         <Card>
@@ -243,8 +242,8 @@ function OutreachChecker() {
               </Button>
             </form>
             <p className="mt-3 text-xs text-muted-foreground">
-              Searches accessible Google Drive files and indexed Cloud Search content. Google access
-              is reused until the short-lived token expires.
+              Searches accessible Google Drive files. Google access is reused until the short-lived
+              token expires.
             </p>
             {googleError ? (
               <p className="mt-3 text-sm text-destructive" role="alert">
@@ -257,7 +256,7 @@ function OutreachChecker() {
         {search.isPending ? (
           <Card>
             <CardContent className="p-6 text-sm text-muted-foreground" role="status">
-              Searching Google Drive and Google Cloud Search…
+              Searching Google Drive…
             </CardContent>
           </Card>
         ) : null}
@@ -274,7 +273,7 @@ function OutreachChecker() {
 
         {data ? (
           <>
-            <section aria-label="Google source status" className="grid gap-3 sm:grid-cols-2">
+            <section aria-label="Google Drive search status">
               {data.sources.map((source) => (
                 <Card key={source.key}>
                   <CardContent className="flex items-start justify-between gap-3 p-4">
@@ -338,9 +337,7 @@ function OutreachChecker() {
                           target="_blank"
                           rel="noreferrer"
                         >
-                          {result.source.includes("Google Drive")
-                            ? "Open original file"
-                            : "Open original conversation"}
+                          Open original file
                           <ExternalLink className="size-3.5" />
                         </a>
                       ) : (
@@ -352,9 +349,8 @@ function OutreachChecker() {
                   ))
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    No matching records were returned from the connected sources. This is not proof
-                    that no previous outreach exists; content may be unindexed, inaccessible, or
-                    held in an unavailable source.
+                    No matching Drive records were returned. This is not proof that no previous
+                    outreach exists; content may be inaccessible or outside this Google account.
                   </p>
                 )}
               </CardContent>
