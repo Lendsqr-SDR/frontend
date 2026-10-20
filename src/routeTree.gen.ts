@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as FollowUpsRouteImport } from './routes/follow-ups'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as OutreachCheckerRouteImport } from './routes/outreach-checker'
 import { Route as LeadsIndexRouteImport } from './routes/leads.index'
 import { Route as LeadsLeadIdRouteImport } from './routes/leads.$leadId'
 
@@ -36,6 +37,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OutreachCheckerRoute = OutreachCheckerRouteImport.update({
+  id: '/outreach-checker',
+  path: '/outreach-checker',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LeadsIndexRoute = LeadsIndexRouteImport.update({
   id: '/leads/',
   path: '/leads/',
@@ -52,6 +58,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/follow-ups': typeof FollowUpsRoute
   '/login': typeof LoginRoute
+  '/outreach-checker': typeof OutreachCheckerRoute
   '/leads/$leadId': typeof LeadsLeadIdRoute
   '/leads/': typeof LeadsIndexRoute
 }
@@ -60,6 +67,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/follow-ups': typeof FollowUpsRoute
   '/login': typeof LoginRoute
+  '/outreach-checker': typeof OutreachCheckerRoute
   '/leads/$leadId': typeof LeadsLeadIdRoute
   '/leads': typeof LeadsIndexRoute
 }
@@ -69,22 +77,36 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/follow-ups': typeof FollowUpsRoute
   '/login': typeof LoginRoute
+  '/outreach-checker': typeof OutreachCheckerRoute
   '/leads/$leadId': typeof LeadsLeadIdRoute
   '/leads/': typeof LeadsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/dashboard' | '/follow-ups' | '/login' | '/leads/$leadId' | '/leads/'
+    | '/'
+    | '/dashboard'
+    | '/follow-ups'
+    | '/login'
+    | '/outreach-checker'
+    | '/leads/$leadId'
+    | '/leads/'
   fileRoutesByTo: FileRoutesByTo
   to:
-    '/' | '/dashboard' | '/follow-ups' | '/login' | '/leads/$leadId' | '/leads'
+    | '/'
+    | '/dashboard'
+    | '/follow-ups'
+    | '/login'
+    | '/outreach-checker'
+    | '/leads/$leadId'
+    | '/leads'
   id:
     | '__root__'
     | '/'
     | '/dashboard'
     | '/follow-ups'
     | '/login'
+    | '/outreach-checker'
     | '/leads/$leadId'
     | '/leads/'
   fileRoutesById: FileRoutesById
@@ -94,6 +116,7 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   FollowUpsRoute: typeof FollowUpsRoute
   LoginRoute: typeof LoginRoute
+  OutreachCheckerRoute: typeof OutreachCheckerRoute
   LeadsLeadIdRoute: typeof LeadsLeadIdRoute
   LeadsIndexRoute: typeof LeadsIndexRoute
 }
@@ -128,6 +151,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/outreach-checker': {
+      id: '/outreach-checker'
+      path: '/outreach-checker'
+      fullPath: '/outreach-checker'
+      preLoaderRoute: typeof OutreachCheckerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/leads/': {
       id: '/leads/'
       path: '/leads'
@@ -150,6 +180,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   FollowUpsRoute: FollowUpsRoute,
   LoginRoute: LoginRoute,
+  OutreachCheckerRoute: OutreachCheckerRoute,
   LeadsLeadIdRoute: LeadsLeadIdRoute,
   LeadsIndexRoute: LeadsIndexRoute,
 }

@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Users,
   CalendarClock,
+  Search,
   Menu,
   LogOut,
   PanelLeftClose,
@@ -17,6 +18,7 @@ const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { to: "/leads", label: "Leads", icon: Users, exact: false },
   { to: "/follow-ups", label: "Follow-ups", icon: CalendarClock, exact: false },
+  { to: "/outreach-checker", label: "Outreach Checker", icon: Search, exact: true },
 ] as const;
 
 function Brand({ collapsed = false }: { collapsed?: boolean }) {
